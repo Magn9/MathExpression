@@ -250,3 +250,6 @@ paket-files/
 # JetBrains Rider
 .idea/
 *.sln.iml
+/MathExpression/MathExpression.vcxproj
+/MathExpression/MathExpression.vcxproj.filters
+/MathExpression.sln
