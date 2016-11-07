@@ -77,7 +77,8 @@ Status main() {
     Push(OPTR, 'h');
     printf("%c", *(OPTR.base + 7));
     //暂时无解
-    
+	system("pause");
+
     return 1;
 }
 
