@@ -24,7 +24,7 @@ typedef struct {
     int stacksize;      //栈大小
 }Stack;
 
-Status GetTop(Stack s, char *e) {
+Status GetTop(Stack s, int *e) {
     if(s.base == s.top)
         return printf("空栈");
     
@@ -33,7 +33,7 @@ Status GetTop(Stack s, char *e) {
     return 1;
 }
 
-Status Push(Stack s, char e) {
+Status Push(Stack s, int e) {
     if(s.top - s.base >= s.stacksize * sizeof(ElemType)) { //若栈满，追加空间
         s.base = (ElemType *) realloc (s.base, (s.stacksize + STACK_INIT_SIZE) * sizeof(ElemType));
         s.top = s.base + s.stacksize; //realloc有可能改变base
@@ -46,7 +46,7 @@ Status Push(Stack s, char e) {
     return 1;
 }
 
-Status Pop(Stack s, char *e) {
+Status Pop(Stack s, int *e) {
     if(s.base == s.top)
         return printf("空栈");
     
@@ -96,27 +96,64 @@ char Precede(char top, char put) {
         return '=';
 }
 
-char Calculate(char num1, char num2, char oprt) {
+Status Calculate(int num1, int num2, char oprt) {
+    switch (oprt) {
+        case '+':
+            Push(OPND, num1+num2);
+            break;
+        case '-':
+            Push(OPND, num1-num2);
+            break;
+        case '*':
+            Push(OPND, num1*num2);
+            break;
+        case '/':
+            Push(OPND, num1/num2);
+            break;
+        default:
+            break;
+    }
     return 1;
 }
 
-void EvaluateExpression() {
+int charToInt(char c) {
+    return c - '0';
+}
+
+Status EvaluateExpression() {
     printf("请输入表达式，以#表示结束\n");
     char c = getchar();
-    char top; //OPTR栈顶
-    char lastTop; //上一个栈顶，用于计算
-    char num1, num2; // 暂存OPND的值用于计算
+    int top; //OPTR栈顶
+    int num1, num2; // 暂存OPND的值用于计算
+    int numtemp, numcount; //由于putchar只能单个输入，如果数字不是1位数，就会出现问题，于是有numtemp暂存,numcount记录数位
     
     GetTop(OPTR, &top);
+    numtemp = numcount = 0;
     
     while(c != '#' || top != '#') {
         if('0' <= c && c <= '9') {  // 如果是操作数，则进OPND栈
-            Push(OPND, c);
+            numtemp += charToInt(c) * pow(10, numcount); //解决非1位数字进栈
+            numcount++;
             c = getchar();
         } else {
+            if(numcount > 0) { //把之前的数字压进栈
+                Push(OPND, numtemp);
+                numtemp = 0;
+                numcount = 0;
+            }
+            
             switch (Precede(top, c)) {
-                case '>': //还有)的情况没写
-                    Push(OPTR, c);
+                case '>':
+                    if(c == ')') { //如果遇到)，则括号内只剩下一个操作符和两个数，直接算出结果并消去(
+                        Pop(OPTR, &top);
+                        Pop(OPND, &num2);
+                        Pop(OPND, &num1);
+                        
+                        Calculate(num1, num2, top); //调用，计算并压入结果
+                        Pop(OPTR, &top); //消去(
+                    } else {
+                        Push(OPTR, c);
+                    }
                     c = getchar();
                     break;
                 
@@ -124,12 +161,12 @@ void EvaluateExpression() {
                     if(c == '(') {  //连续括号的情况，直接压入
                         Push(OPTR, c);
                     } else {        //可以计算上一个操作符的值，如3+3-
-                        Pop(OPTR, &lastTop);
+                        Pop(OPTR, &top);
                         Pop(OPND, &num2);
                         Pop(OPND, &num1);
                         
+                        Calculate(num1, num2, top); //调用，计算并压入结果
                         Push(OPTR, c); //这时候压入所输入的操作符
-                        Push(OPND, Calculate(num1, num2, lastTop)); //压入结果
                     }
                     break;
                     
@@ -137,8 +174,13 @@ void EvaluateExpression() {
                     if(top == '(') { //如(2x的情况，直接压入
                         Push(OPTR, c);
                     } else {   //如(2x1+的情况，计算上一个操作符的值
-                        //待定
+                        Pop(OPTR, &top);
+                        Pop(OPND, &num2);
+                        Pop(OPND, &num1);
                         
+                        
+                        Calculate(num1, num2, top); //压入结果
+                        Push(OPTR, c); //这时候压入所输入的操作符
                     }
                     
                 default:
@@ -149,11 +191,26 @@ void EvaluateExpression() {
         GetTop(OPTR, &top);
     }
     
+    return 1;
+    
 }
 
 Status main() {
     InitStack();
+    Push(OPTR, 'h');
+    int a;
+
+    printf("1:%c\n", *OPTR.base);
+    printf("2:%c\n", *OPTR.top);
+    printf("3:%c\n", *(OPTR.base + sizeof(ElemType)));
     
+    /*
+    EvaluateExpression();
+    
+    int a;
+    GetTop(OPND, &a);
+    printf("\n结果:%d", a);
+     */
     return 1;
 }
 
