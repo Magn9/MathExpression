@@ -1,4 +1,4 @@
-//
+﻿//
 //  main.c
 //  MathExpression
 //
@@ -22,47 +22,49 @@ typedef struct {
     ElemType *base;     //栈底指针
     ElemType *top;      //栈顶指针
     int stacksize;      //栈大小
-}Stack;
-
-Status GetTop(Stack s, int *e) {
-    if(s.base == s.top)
-        return printf("空栈");
-    
-    *e = *(s.top - sizeof(ElemType));
-    
-    return 1;
-}
-
-Status Push(Stack s, int e) {
-    if(s.top - s.base >= s.stacksize * sizeof(ElemType)) { //若栈满，追加空间
-        s.base = (ElemType *) realloc (s.base, (s.stacksize + STACK_INIT_SIZE) * sizeof(ElemType));
-        s.top = s.base + s.stacksize; //realloc有可能改变base
-        s.stacksize += STACK_INCREMENT;
-    }
-    
-    *s.top = e;
-    s.top += sizeof(ElemType);
-    
-    return 1;
-}
-
-Status Pop(Stack s, int *e) {
-    if(s.base == s.top)
-        return printf("空栈");
-    
-    s.top -= sizeof(ElemType);
-    *e = *s.top;
-    
-    return 1;
-}
+}Stack, *pStack;
 
 Stack OPTR, OPND; //OPTR寄存运算符，OPND寄存操作数　operator/operand
+
+Status GetTop(pStack s, int *e) {
+    if(s->base == s->top)
+        return printf("空栈top");
+    
+    *e = *(s->top - 1);
+    
+    return 1;
+}
+
+Status Push(pStack s, int e) {
+    if(s->top - s->base >= s->stacksize) { //若栈满，追加空间
+        s->base = (ElemType *) realloc (s->base, (s->stacksize + STACK_INIT_SIZE) * sizeof(ElemType));
+        s->top = s->base + s->stacksize; //realloc有可能改变base
+        s->stacksize += STACK_INCREMENT;
+    }
+    
+    *s->top = e;
+	s->top++;
+    
+    return 1;
+}
+
+Status Pop(pStack s, int *e) {
+    if(s->base == s->top)
+        return printf("空栈");
+    
+	s->top--;
+    *e = *s->top;
+    
+    return 1;
+}
+
+
 
 Status InitStack() { //初始化两栈，并PUSH #进运算符栈
     OPTR.base = (ElemType *) malloc (STACK_INIT_SIZE * sizeof(ElemType));
     OPTR.top = OPTR.base;
     OPTR.stacksize = STACK_INIT_SIZE;
-    Push(OPTR, '#');
+    Push(&OPTR, '#');
     
     OPND.base = (ElemType *) malloc (STACK_INIT_SIZE * sizeof(ElemType));
     OPND.top = OPND.base;
@@ -74,11 +76,13 @@ Status InitStack() { //初始化两栈，并PUSH #进运算符栈
 char Precede(char top, char put) {
     int a, b; //+ - 为0，* /为1，()为2
     
-    if(top == '+' || top == '-')
-        a = 0;
-    else if(top == '*' || top == '\\')
-        a = 1;
-    else
+	if (top == '+' || top == '-')
+		a = 0;
+	else if (top == '*' || top == '\\')
+		a = 1;
+	else if (top == '#')
+		a = -1;
+	else //括号
         a = 2;
     
     if(put == '+' || put == '-')
@@ -89,9 +93,9 @@ char Precede(char top, char put) {
         b = 2;
     
     if(a > b)
-        return '>';
-    else if(a < b)
         return '<';
+    else if(a < b)
+        return '>';
     else
         return '=';
 }
@@ -99,16 +103,16 @@ char Precede(char top, char put) {
 Status Calculate(int num1, int num2, char oprt) {
     switch (oprt) {
         case '+':
-            Push(OPND, num1+num2);
+            Push(&OPND, num1+num2);
             break;
         case '-':
-            Push(OPND, num1-num2);
+            Push(&OPND, num1-num2);
             break;
         case '*':
-            Push(OPND, num1*num2);
+            Push(&OPND, num1*num2);
             break;
         case '/':
-            Push(OPND, num1/num2);
+            Push(&OPND, num1/num2);
             break;
         default:
             break;
@@ -127,17 +131,17 @@ Status EvaluateExpression() {
     int num1, num2; // 暂存OPND的值用于计算
     int numtemp, numcount; //由于putchar只能单个输入，如果数字不是1位数，就会出现问题，于是有numtemp暂存,numcount记录数位
     
-    GetTop(OPTR, &top);
+    GetTop(&OPTR, &top);
     numtemp = numcount = 0;
     
-    while(c != '#' || top != '#') {
+	while(c != '#' || top != '#') {
         if('0' <= c && c <= '9') {  // 如果是操作数，则进OPND栈
             numtemp += charToInt(c) * pow(10, numcount); //解决非1位数字进栈
             numcount++;
             c = getchar();
         } else {
             if(numcount > 0) { //把之前的数字压进栈
-                Push(OPND, numtemp);
+                Push(&OPND, numtemp);
                 numtemp = 0;
                 numcount = 0;
             }
@@ -145,42 +149,42 @@ Status EvaluateExpression() {
             switch (Precede(top, c)) {
                 case '>':
                     if(c == ')') { //如果遇到)，则括号内只剩下一个操作符和两个数，直接算出结果并消去(
-                        Pop(OPTR, &top);
-                        Pop(OPND, &num2);
-                        Pop(OPND, &num1);
+                        Pop(&OPTR, &top);
+                        Pop(&OPND, &num2);
+                        Pop(&OPND, &num1);
                         
                         Calculate(num1, num2, top); //调用，计算并压入结果
-                        Pop(OPTR, &top); //消去(
+                        Pop(&OPTR, &top); //消去(
                     } else {
-                        Push(OPTR, c);
+                        Push(&OPTR, c);
                     }
                     c = getchar();
                     break;
                 
                 case '=':
                     if(c == '(') {  //连续括号的情况，直接压入
-                        Push(OPTR, c);
+                        Push(&OPTR, c);
                     } else {        //可以计算上一个操作符的值，如3+3-
-                        Pop(OPTR, &top);
-                        Pop(OPND, &num2);
-                        Pop(OPND, &num1);
+                        Pop(&OPTR, &top);
+                        Pop(&OPND, &num2);
+                        Pop(&OPND, &num1);
                         
                         Calculate(num1, num2, top); //调用，计算并压入结果
-                        Push(OPTR, c); //这时候压入所输入的操作符
+                        Push(&OPTR, c); //这时候压入所输入的操作符
                     }
                     break;
                     
                 case '<':
                     if(top == '(') { //如(2x的情况，直接压入
-                        Push(OPTR, c);
+                        Push(&OPTR, c);
                     } else {   //如(2x1+的情况，计算上一个操作符的值
-                        Pop(OPTR, &top);
-                        Pop(OPND, &num2);
-                        Pop(OPND, &num1);
+                        Pop(&OPTR, &top);
+                        Pop(&OPND, &num2);
+                        Pop(&OPND, &num1);
                         
                         
                         Calculate(num1, num2, top); //压入结果
-                        Push(OPTR, c); //这时候压入所输入的操作符
+                        Push(&OPTR, c); //这时候压入所输入的操作符
                     }
                     
                 default:
@@ -188,7 +192,7 @@ Status EvaluateExpression() {
             }
             
         }
-        GetTop(OPTR, &top);
+        GetTop(&OPTR, &top);
     }
     
     return 1;
@@ -197,20 +201,14 @@ Status EvaluateExpression() {
 
 Status main() {
     InitStack();
-    Push(OPTR, 'h');
-    int a;
 
-    printf("1:%c\n", *OPTR.base);
-    printf("2:%c\n", *OPTR.top);
-    printf("3:%c\n", *(OPTR.base + sizeof(ElemType)));
-    
-    /*
     EvaluateExpression();
     
     int a;
-    GetTop(OPND, &a);
-    printf("\n结果:%d", a);
-     */
+    GetTop(&OPND, &a);
+    printf("结果:%d\n", a);
+
+	system("pause");
     return 1;
 }
 
