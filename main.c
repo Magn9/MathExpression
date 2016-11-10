@@ -27,8 +27,9 @@ typedef struct {
 Stack OPTR, OPND; //OPTR寄存运算符，OPND寄存操作数　operator/operand
 
 Status GetTop(pStack s, int *e) {
-    if(s->base == s->top)
+    if(s->base == s->top) {
         return printf("空栈top");
+    }
     
     *e = *(s->top - 1);
     
@@ -42,7 +43,15 @@ Status Push(pStack s, int e) {
         s->stacksize += STACK_INCREMENT;
     }
     
+    
     *s->top = e;
+    if(s == &OPND)
+    {
+        printf("压入OPND,值为%d\n", *s->top);
+    } else {
+        printf("压入OPRT,值为%c\n", *s->top);
+    }
+        
 	s->top++;
     
     return 1;
@@ -54,6 +63,13 @@ Status Pop(pStack s, int *e) {
     
 	s->top--;
     *e = *s->top;
+    
+    if(s == &OPND)
+    {
+        printf("出栈OPND,值为%d\n", *s->top);
+    } else {
+        printf("出栈OPRT,值为%c\n", *s->top);
+    }
     
     return 1;
 }
@@ -89,6 +105,8 @@ char Precede(char top, char put) {
         b = 0;
     else if(put == '*' || put == '\\')
         b = 1;
+    else if (put == '#')
+        b = -1;
     else
         b = 2;
     
@@ -172,6 +190,7 @@ Status EvaluateExpression() {
                         Calculate(num1, num2, top); //调用，计算并压入结果
                         Push(&OPTR, c); //这时候压入所输入的操作符
                     }
+                    c = getchar();
                     break;
                     
                 case '<':
@@ -184,8 +203,21 @@ Status EvaluateExpression() {
                         
                         
                         Calculate(num1, num2, top); //压入结果
-                        Push(&OPTR, c); //这时候压入所输入的操作符
+                        if(c != '#') {
+                            Push(&OPTR, c); //这时候压入所输入的操作符
+    
+                        } else {
+                            Pop(&OPTR, &top);
+                            Pop(&OPND, &num2);
+                            Pop(&OPND, &num1);
+
+                            Calculate(num1, num2, top); //压入结果
+                            
+                        }
                     }
+                    if(c != '#')
+                        c = getchar();
+                    break;
                     
                 default:
                     break;
