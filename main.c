@@ -24,14 +24,22 @@ typedef struct {
     int stacksize;      //栈大小
 }Stack, *pStack;
 
-Stack OPTR, OPND; //OPTR寄存运算符，OPND寄存操作数　operator/operand
+Stack OPRT, OPND; //OPTR寄存运算符，OPND寄存操作数　operator/operand
 
 Status GetTop(pStack s, int *e) {
     if(s->base == s->top) {
         return printf("空栈top");
     }
     
+    
     *e = *(s->top - 1);
+
+    if(s == &OPND)
+    {
+        printf("OPND栈顶元素值为%d\n", *e);
+    } else {
+        printf("OPRT栈顶元素值为%c\n", *e);
+    }
     
     return 1;
 }
@@ -47,9 +55,9 @@ Status Push(pStack s, int e) {
     *s->top = e;
     if(s == &OPND)
     {
-        printf("压入OPND,值为%d\n", *s->top);
+        printf("OPND入栈,值为%d\n", *s->top);
     } else {
-        printf("压入OPRT,值为%c\n", *s->top);
+        printf("OPRT入栈,值为%c\n", *s->top);
     }
         
 	s->top++;
@@ -66,9 +74,9 @@ Status Pop(pStack s, int *e) {
     
     if(s == &OPND)
     {
-        printf("出栈OPND,值为%d\n", *s->top);
+        printf("OPND出栈,值为%d\n", *s->top);
     } else {
-        printf("出栈OPRT,值为%c\n", *s->top);
+        printf("OPRT出栈,值为%c\n", *s->top);
     }
     
     return 1;
@@ -77,10 +85,10 @@ Status Pop(pStack s, int *e) {
 
 
 Status InitStack() { //初始化两栈，并PUSH #进运算符栈
-    OPTR.base = (ElemType *) malloc (STACK_INIT_SIZE * sizeof(ElemType));
-    OPTR.top = OPTR.base;
-    OPTR.stacksize = STACK_INIT_SIZE;
-    Push(&OPTR, '#');
+    OPRT.base = (ElemType *) malloc (STACK_INIT_SIZE * sizeof(ElemType));
+    OPRT.top = OPRT.base;
+    OPRT.stacksize = STACK_INIT_SIZE;
+    Push(&OPRT, '#');
     
     OPND.base = (ElemType *) malloc (STACK_INIT_SIZE * sizeof(ElemType));
     OPND.top = OPND.base;
@@ -89,7 +97,7 @@ Status InitStack() { //初始化两栈，并PUSH #进运算符栈
     return 1;
 }
 
-char Precede(char top, char put) {
+char Precede(char input, char top) {
     int a, b; //+ - 为0，* /为1，()为2
     
 	if (top == '+' || top == '-')
@@ -101,11 +109,11 @@ char Precede(char top, char put) {
 	else //括号
         a = 2;
     
-    if(put == '+' || put == '-')
+    if(input == '+' || input == '-')
         b = 0;
-    else if(put == '*' || put == '\\')
+    else if(input == '*' || input == '\\')
         b = 1;
-    else if (put == '#')
+    else if (input == '#')
         b = -1;
     else
         b = 2;
@@ -118,7 +126,13 @@ char Precede(char top, char put) {
         return '=';
 }
 
-Status Calculate(int num1, int num2, char oprt) {
+Status Calculate() { //取两个数字和一个操作符，压入结果
+    int num1, num2, oprt;
+    
+    Pop(&OPRT, &oprt);
+    Pop(&OPND, &num2);
+    Pop(&OPND, &num1);
+        
     switch (oprt) {
         case '+':
             Push(&OPND, num1+num2);
@@ -143,88 +157,71 @@ int charToInt(char c) {
 }
 
 Status EvaluateExpression() {
+    int input, rttop;
+    int numtemp, numcount; //解决非1位数字输入
     printf("请输入表达式，以#表示结束\n");
-    char c = getchar();
-    int top; //OPTR栈顶
-    int num1, num2; // 暂存OPND的值用于计算
-    int numtemp, numcount; //由于putchar只能单个输入，如果数字不是1位数，就会出现问题，于是有numtemp暂存,numcount记录数位
     
-    GetTop(&OPTR, &top);
+    input = getchar();
+    GetTop(&OPRT, &rttop);
     numtemp = numcount = 0;
     
-	while(c != '#' || top != '#') {
-        if('0' <= c && c <= '9') {  // 如果是操作数，则进OPND栈
-            numtemp += charToInt(c) * pow(10, numcount); //解决非1位数字进栈
+    while (rttop != '#' || input != '#') {
+        if('0' <= input && input <= '9') { //输入的是数字
+            numtemp += charToInt(input) * pow(10, numcount);
             numcount++;
-            c = getchar();
+            input = getchar();
         } else {
-            if(numcount > 0) { //把之前的数字压进栈
+            if(numcount > 0) //如果前面是数字，则数字已经输入完，压入
+            {
                 Push(&OPND, numtemp);
-                numtemp = 0;
-                numcount = 0;
+                numcount = numtemp = 0;
             }
             
-            switch (Precede(top, c)) {
-                case '>':
-                    if(c == ')') { //如果遇到)，则括号内只剩下一个操作符和两个数，直接算出结果并消去(
-                        Pop(&OPTR, &top);
-                        Pop(&OPND, &num2);
-                        Pop(&OPND, &num1);
-                        
-                        Calculate(num1, num2, top); //调用，计算并压入结果
-                        Pop(&OPTR, &top); //消去(
+            switch (Precede(input, rttop)) {
+                case '>': //如果不是)则直接压入，否则计算括号内并消去( 3*((5-2)+4*(3+1))
+                    if(input == ')') {
+                        while (rttop != '(') { //括号内还剩下2个符号的情况 e.g (3+4*4)
+                            Calculate();
+                            GetTop(&OPRT, &rttop);
+                        }
+                        Pop(&OPRT, &rttop); //消去( ，rttop这里只是摆设
                     } else {
-                        Push(&OPTR, c);
+                        Push(&OPRT, input);
                     }
-                    c = getchar();
+                    
+                    input = getchar();
                     break;
                 
-                case '=':
-                    if(c == '(') {  //连续括号的情况，直接压入
-                        Push(&OPTR, c);
-                    } else {        //可以计算上一个操作符的值，如3+3-
-                        Pop(&OPTR, &top);
-                        Pop(&OPND, &num2);
-                        Pop(&OPND, &num1);
-                        
-                        Calculate(num1, num2, top); //调用，计算并压入结果
-                        Push(&OPTR, c); //这时候压入所输入的操作符
+                case '=': //若输入(，则直接压入，否则计算上一个操作符
+                    if(input == '(') {
+                        Push(&OPRT, input);
+                    } else {
+                        Calculate();
+                        Push(&OPRT, input);
                     }
-                    c = getchar();
+                    
+                    input = getchar();
                     break;
                     
-                case '<':
-                    if(top == '(') { //如(2x的情况，直接压入
-                        Push(&OPTR, c);
-                    } else {   //如(2x1+的情况，计算上一个操作符的值
-                        Pop(&OPTR, &top);
-                        Pop(&OPND, &num2);
-                        Pop(&OPND, &num1);
-                        
-                        
-                        Calculate(num1, num2, top); //压入结果
-                        if(c != '#') {
-                            Push(&OPTR, c); //这时候压入所输入的操作符
-    
-                        } else {
-                            Pop(&OPTR, &top);
-                            Pop(&OPND, &num2);
-                            Pop(&OPND, &num1);
-
-                            Calculate(num1, num2, top); //压入结果
-                            
-                        }
+                case '<': //若输入是#，则继续计算上一个操作符
+                    if(input == '#') {
+                        Calculate();
+                    } else if(rttop == '(') {
+                        Push(&OPRT, input);
+                        input = getchar();
+                    } else { //否则计算后压入输入
+                        Calculate();
+                        Push(&OPRT, input);
+                        input = getchar();
                     }
-                    if(c != '#')
-                        c = getchar();
-                    break;
+                    break; 
                     
                 default:
                     break;
             }
             
+            GetTop(&OPRT, &rttop);
         }
-        GetTop(&OPTR, &top);
     }
     
     return 1;
